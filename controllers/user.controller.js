@@ -4,81 +4,184 @@ import jwt from "jsonwebtoken";
 import getDataUri from "../utils/datauri.js";
 import cloudinary from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
+import sgMail from '@sendgrid/mail';
+import { OTP } from "../models/otp.model.js";
+
+
+// Set SendGrid API key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+
+export const sendOTP = async (req, res) => {
+    try {
+
+        console.log(req.body);
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required",
+                success: false,
+            });
+        }
+        
+        // Validate email format
+        const emailRegex = /^[a-zA-Z]+_\d{11}@hnbgu\.edu\.in$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                message: "Please enter college provided Email!",
+                success: false,
+            });
+        }
+        
+        // Check if email exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({
+                message: "Email already registered",
+                success: false,
+            });
+        }
+        
+        // Generate 4-digit OTP
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        // Save OTP to database
+        await OTP.findOneAndUpdate(
+            { email },
+            { email, otp },
+            { upsert: true, new: true }
+        );
+        
+        // Prepare email content
+        const msg = {
+            to: email,
+            from: process.env.SENDGRID_FROM_EMAIL, // Your verified sender in SendGrid
+            subject: 'Your HNB X Verification Code',
+            text: `Your OTP for HNB X signup is ${otp}. This code will expire in 15 minutes.`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #4a5568; text-align: center;">HNB X Account Verification</h2>
+                    <p>Hello,</p>
+                    <p>Your verification code for HNB X is:</p>
+                    <div style="text-align: center; padding: 10px; background: #f7fafc; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 15px 0;">
+                        ${otp}
+                    </div>
+                    <p>This code will expire in 15 minutes.</p>
+                    <p style="font-size: 12px; color: #718096; margin-top: 30px;">If you didn't request this code, please ignore this email.</p>
+                </div>
+            `
+        };
+        
+        // Send email
+        await sgMail.send(msg);
+        
+        return res.status(200).json({
+            message: "OTP sent successfully",
+            success: true,
+        });
+        
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Failed to send OTP",
+            success: false,
+        });
+    }
+};
+
 export const register = async (req, res) => {
     try {
         console.log(req.body);
-        const { firstname,lastname, department, year , email, password } = req.body;
-        if (!firstname || !year || !lastname ||  !email || !password || !department) {
+        const { firstname, lastname, department, year, email, password, otp } = req.body;
+        
+        if (!firstname || !year || !lastname || !email || !password || !department || !otp) {
             return res.status(401).json({
                 message: "Something is missing, please check!",
                 success: false,
             });
         }
-        const user = await User.findOne({ email });
-        if (user) {
+        
+        // Verify OTP
+        const otpRecord = await OTP.findOne({ email });
+        if (!otpRecord) {
+            return res.status(400).json({
+                message: "OTP expired or not sent. Please request a new OTP.",
+                success: false,
+            });
+        }
+        
+        if (otpRecord.otp !== otp) {
+            return res.status(400).json({
+                message: "Invalid OTP. Please check and try again.",
+                success: false,
+            });
+        }
+        
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
             return res.status(401).json({
-                message: "Try different email",
+                message: "Email already registered",
                 success: false,
             });
         };
 
-
-        //extracting username from email
+        // Extract username from email
         const baseUsername = email.split('@')[0];   
-
         const [name, number] = baseUsername.split('_');
-
         const last4Digits = number.slice(-4);
+        const username = name + last4Digits;
 
-        const username = name+last4Digits;
+        // Create full name
+        const fullname = firstname + " " + lastname;
 
-        //name
-
-        const fullname = firstname + " "  + lastname
-
-        //checking role
+        // Determine role
         let role = "student";
-
         const currentDate = new Date();
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth();
 
-        if(year < currentYear ){
+        if (year < currentYear) {
             role = "alumni";
-
-        }
-        else if (year == currentYear){
-            if(currentMonth > 5){
-                
+        } else if (year == currentYear) {
+            if (currentMonth > 5) {
                 role = "alumni";
-
             }
-                  
         }
 
-
-        //pass hashing
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
-
         
+        // Create user
         await User.create({
             username,
             email,
             department,
             password: hashedPassword,
-            fullName : fullname,
-            graduationyear : year,
+            fullName: fullname,
+            graduationYear: year,
             role
-
         });
+        
+        // Delete OTP record after successful verification
+        await OTP.deleteOne({ email });
+        
         return res.status(201).json({
             message: "Account created successfully.",
             success: true,
         });
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message || "Failed to create account",
+            success: false,
+        });
     }
-}
+
+};    
+
+
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;

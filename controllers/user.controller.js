@@ -228,7 +228,9 @@ export const login = async (req, res) => {
             bio: user.bio,
             followers: user.followers,
             following: user.following,
-            posts: populatedPosts
+            posts: populatedPosts,
+            role : user.role,
+            graduationYear : user.graduationYear
         }
         return res.cookie('token', token, { httpOnly: true, sameSite: 'strict', maxAge: 1 * 24 * 60 * 60 * 1000 }).json({
             message: `Welcome back ${user.username}`,

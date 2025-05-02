@@ -13,14 +13,23 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 
 export const sendOTP = async (req, res) => {
+    console.log(req.body)
     try {
 
         console.log(req.body);
         const { email } = req.body;
+        const { acceptedTerms } = req.body; 
         
         if (!email) {
             return res.status(400).json({
                 message: "Email is required",
+                success: false,
+            });
+        }
+
+        if (!acceptedTerms) {
+            return res.status(400).json({
+                message: "Please accept the terms and conditions",
                 success: false,
             });
         }

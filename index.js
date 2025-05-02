@@ -25,7 +25,7 @@ app.use(cors({
     credentials: true
 }));
 
-// yha pr apni api ayengi
+//api routes
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/post", postRoute);
 app.use("/api/v1/message", messageRoute);

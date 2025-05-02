@@ -48,13 +48,13 @@ export const addNewPost = async (req, res) => {
 export const getAllPost = async (req, res) => {
     try {
         const posts = await Post.find().sort({ createdAt: -1 })
-            .populate({ path: 'author', select: 'username profilePicture' })
+            .populate({ path: 'author', select: 'username profilePicture fullName role' })
             .populate({
                 path: 'comments',
                 sort: { createdAt: -1 },
                 populate: {
                     path: 'author',
-                    select: 'username profilePicture'
+                    select: 'username profilePicture fullName role'
                 }
             });
         return res.status(200).json({
@@ -70,13 +70,13 @@ export const getUserPost = async (req, res) => {
         const authorId = req.id;
         const posts = await Post.find({ author: authorId }).sort({ createdAt: -1 }).populate({
             path: 'author',
-            select: 'username, profilePicture'
+            select: 'username, profilePicture, fullName, role'
         }).populate({
             path: 'comments',
             sort: { createdAt: -1 },
             populate: {
                 path: 'author',
-                select: 'username, profilePicture'
+                select: 'username, profilePicture, fullName, role'
             }
         });
         return res.status(200).json({
@@ -99,7 +99,7 @@ export const likePost = async (req, res) => {
         await post.save();
 
         // implement socket io for real time notification
-        const user = await User.findById(likeKrneWalaUserKiId).select('username profilePicture');
+        const user = await User.findById(likeKrneWalaUserKiId).select('username profilePicture fullName');
          
         const postOwnerId = post.author.toString();
         if(postOwnerId !== likeKrneWalaUserKiId){
@@ -132,7 +132,7 @@ export const dislikePost = async (req, res) => {
         await post.save();
 
         // implement socket io for real time notification
-        const user = await User.findById(likeKrneWalaUserKiId).select('username profilePicture');
+        const user = await User.findById(likeKrneWalaUserKiId).select('username profilePicture fullName');
         const postOwnerId = post.author.toString();
         if(postOwnerId !== likeKrneWalaUserKiId){
             // emit a notification event
@@ -175,7 +175,7 @@ export const addComment = async (req,res) =>{
 
         await comment.populate({
             path:'author',
-            select:"username profilePicture"
+            select:"username profilePicture fullName"
         });
         
         post.comments.push(comment._id);
@@ -195,7 +195,7 @@ export const getCommentsOfPost = async (req,res) => {
     try {
         const postId = req.params.id;
 
-        const comments = await Comment.find({post:postId}).populate('author', 'username profilePicture');
+        const comments = await Comment.find({post:postId}).populate('author', 'username profilePicture fullName');    //changes made 5/2/25
 
         if(!comments) return res.status(404).json({message:'No comments found for this post', success:false});
 

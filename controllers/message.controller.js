@@ -7,6 +7,13 @@ export const sendMessage = async (req,res) => {
         const senderId = req.id;
         const receiverId = req.params.id;
         const {textMessage:message} = req.body;
+
+        if (!message || message.trim() === '') {         //check for empty message
+            return res.status(400).json({
+                success: false,
+                message: "Message cannot be empty"
+            });
+        }
       
         let conversation = await Conversation.findOne({
             participants:{$all:[senderId, receiverId]}

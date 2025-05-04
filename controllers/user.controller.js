@@ -141,9 +141,14 @@ export const register = async (req, res) => {
         const [name, number] = baseUsername.split('_');
         const last4Digits = number.slice(-4);
         const username = name + last4Digits;
+        const rollnumber = number;
 
         // Create full name
         const fullname = firstname + " " + lastname;
+
+        
+
+
 
         // Determine role
         let role = "student";
@@ -169,6 +174,7 @@ export const register = async (req, res) => {
             department,
             password: hashedPassword,
             fullName: fullname,
+            rollnumber,
             graduationYear: year,
             role
         });
@@ -232,6 +238,7 @@ export const login = async (req, res) => {
             username: user.username,
             department : user.department,
             fullName : user.fullName ,
+            rollnumber : user.rollnumber,
             email: user.email,
             profilePicture: user.profilePicture,
             bio: user.bio,

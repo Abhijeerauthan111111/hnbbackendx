@@ -11,22 +11,52 @@ export const addNewPost = async (req, res) => {
         const image = req.file;
         const authorId = req.id;
 
-        if (!image) return res.status(400).json({ message: 'Image required' });
+        // if (!image) return res.status(400).json({ message: 'Image required' });
 
         // image upload 
-        const optimizedImageBuffer = await sharp(image.buffer)
-            .resize({ width: 800, height: 800, fit: 'inside' })
-            .toFormat('jpeg', { quality: 80 })
-            .toBuffer();
+        let imageUrl = null ;
+        if (image) {
+            try {
+                const optimizedImageBuffer = await sharp(image.buffer)
+                    .resize({ width: 800, height: 800, fit: 'inside' })
+                    .toFormat('jpeg', { quality: 80 })
+                    .toBuffer();
+                
+                const fileUri = `data:image/jpeg;base64,${optimizedImageBuffer.toString('base64')}`;
+                
+                const cloudResponse = await cloudinary.uploader.upload(fileUri);
+
+                imageUrl = cloudResponse.secure_url;
+            } 
+            
+            catch (imageError) {
+                console.log("Image processing error:", imageError);
+                return res.status(500).json({
+                    message: 'Failed to process image',
+                    success: false
+                });
+            }
+        }
+
+        
 
         // buffer to data uri
-        const fileUri = `data:image/jpeg;base64,${optimizedImageBuffer.toString('base64')}`;
-        const cloudResponse = await cloudinary.uploader.upload(fileUri);
-        const post = await Post.create({
+        
+        // Create post object with required fields
+        const postData = {
             caption,
-            image: cloudResponse.secure_url,
             author: authorId
-        });
+        };
+
+        // Only add image field if an image was uploaded
+        if (imageUrl) {
+            postData.image = imageUrl;
+        }
+
+        // Create the post
+        const post = await Post.create(postData);
+
+        // Update user's posts array
         const user = await User.findById(authorId);
         if (user) {
             user.posts.push(post._id);
@@ -39,12 +69,20 @@ export const addNewPost = async (req, res) => {
             message: 'New post added',
             post,
             success: true,
-        })
+        });
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message || 'Failed to create post',
+            success: false
+        });
     }
 }
+
+
+
+
 export const getAllPost = async (req, res) => {
     try {
         const posts = await Post.find().sort({ createdAt: -1 })

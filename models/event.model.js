@@ -9,6 +9,8 @@ const eventSchema = new mongoose.Schema({
     endDate:{type:Date, required:true},
     description:{type:String, default:''},
     eventStatus:{type:String, enum:['upcoming', 'ongoing', 'completed'], default:'upcoming'},  
+    createdAt: {type: Date, default: Date.now},
 
-});
-export const Post = mongoose.model('Event', eventSchema);
+},  {timestamps: true}
+);
+export const Event = mongoose.model('Event', eventSchema);

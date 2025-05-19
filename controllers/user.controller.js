@@ -234,7 +234,7 @@ export const login = async (req, res) => {
             })
         )
 
-        // Filter out null values
+       
         const filteredPosts = populatedPosts.filter(post => post !== null);
         
 
@@ -254,6 +254,8 @@ export const login = async (req, res) => {
             role : user.role,
             graduationYear : user.graduationYear
         }
+
+        
         return res.cookie('token', token, { httpOnly: true, sameSite: 'strict', maxAge: 1 * 24 * 60 * 60 * 1000 }).json({
             message: `Welcome back ${user.username}`,
             success: true,

@@ -108,7 +108,7 @@ export const addNewEvent = async (req, res) => {
         
         return res.status(201).json({
             message: 'Event created successfully',
-            post: event, // Using "post" key to be compatible with frontend
+            event: event, // Change from post to event
             success: true
         });
     } catch (error) {

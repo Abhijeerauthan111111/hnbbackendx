@@ -1,5 +1,17 @@
 import express from "express";
-import { editProfile, followOrUnfollow, getProfile, getSuggestedUsers, login, logout, register, sendOTP } from "../controllers/user.controller.js";
+import { 
+  editProfile, 
+  followOrUnfollow, 
+  getProfile, 
+  getSuggestedUsers, 
+  login, 
+  logout, 
+  register, 
+  sendOTP,
+  forgotPassword,         
+  verifyResetOTP,
+  resetPassword
+} from "../controllers/user.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 import upload from "../middlewares/multer.js";
 
@@ -13,5 +25,10 @@ router.route('/:id/profile').get(isAuthenticated, getProfile);
 router.route('/profile/edit').post(isAuthenticated, upload.single('profilePhoto'), editProfile);
 router.route('/suggested').get(isAuthenticated, getSuggestedUsers);
 router.route('/followorunfollow/:id').post(isAuthenticated, followOrUnfollow);
+
+// Password reset routes
+router.route('/forgot-password').post(forgotPassword);
+router.route('/verify-reset-otp').post(verifyResetOTP);
+router.route('/reset-password').post(resetPassword);
 
 export default router;

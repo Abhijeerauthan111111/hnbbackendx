@@ -6,7 +6,7 @@ import cloudinary from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import sgMail from '@sendgrid/mail';
 import { OTP } from "../models/otp.model.js";
-
+import { PasswordReset } from "../models/password-reset.model.js";
 
 // Set SendGrid API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -408,4 +408,189 @@ export const followOrUnfollow = async (req, res) => {
         console.log(error);
     }
 }
+
+// Forgot password - send OTP to email
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+        success: false
+      });
+    }
+    
+    // Check if user exists with this email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        message: "No account found with this email",
+        success: false
+      });
+    }
+    
+    // Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    // Save OTP to password reset collection
+    await PasswordReset.findOneAndUpdate(
+      { email },
+      { email, otp, isVerified: false },
+      { upsert: true, new: true }
+    );
+    
+    // Prepare email content
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: 'HNB X Password Reset Code',
+      text: `Your password reset code for HNB X is ${otp}. This code will expire in 15 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+          <h2 style="color: #4a5568; text-align: center;">HNB X Password Reset</h2>
+          <p>Hello ${user.fullName || user.username},</p>
+          <p>We received a request to reset your password. Your verification code is:</p>
+          <div style="text-align: center; padding: 10px; background: #f7fafc; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 15px 0;">
+            ${otp}
+          </div>
+          <p>This code will expire in 15 minutes.</p>
+          <p>If you didn't request a password reset, please ignore this email or contact support if you have concerns.</p>
+          <p style="font-size: 12px; color: #718096; margin-top: 30px;">This is an automated message, please do not reply.</p>
+        </div>
+      `
+    };
+    
+    // Send email
+    await sgMail.send(msg);
+    
+    return res.status(200).json({
+      message: "Password reset code sent to your email",
+      success: true
+    });
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Failed to process password reset request",
+      success: false
+    });
+  }
+};
+
+// Verify OTP for password reset
+export const verifyResetOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({
+        message: "Email and OTP are required",
+        success: false
+      });
+    }
+    
+    // Find the reset record
+    const resetRecord = await PasswordReset.findOne({ email });
+    if (!resetRecord) {
+      return res.status(400).json({
+        message: "Reset code expired or not sent. Please request a new code.",
+        success: false
+      });
+    }
+    
+    // Verify OTP
+    if (resetRecord.otp !== otp) {
+      return res.status(400).json({
+        message: "Invalid code. Please check and try again.",
+        success: false
+      });
+    }
+    
+    // Mark as verified
+    resetRecord.isVerified = true;
+    await resetRecord.save();
+    
+    return res.status(200).json({
+      message: "Code verified successfully. You can now reset your password.",
+      success: true
+    });
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Failed to verify reset code",
+      success: false
+    });
+  }
+};
+
+// Reset password with new password
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword } = req.body;
+    
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        message: "All fields are required",
+        success: false
+      });
+    }
+    
+    // Check if passwords match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: "Passwords don't match",
+        success: false
+      });
+    }
+    
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        message: "Password must contain at least 8 characters, including uppercase, lowercase, numbers and special characters",
+        success: false
+      });
+    }
+    
+    // Check if OTP was verified
+    const resetRecord = await PasswordReset.findOne({ email, isVerified: true });
+    if (!resetRecord) {
+      return res.status(400).json({
+        message: "You must verify your email with the code first",
+        success: false
+      });
+    }
+    
+    // Find user and update password
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false
+      });
+    }
+    
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+    
+    // Delete reset record after successful password change
+    await PasswordReset.deleteOne({ email });
+    
+    return res.status(200).json({
+      message: "Password reset successfully. You can now login with your new password.",
+      success: true
+    });
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Failed to reset password",
+      success: false
+    });
+  }
+};
 

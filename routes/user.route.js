@@ -10,13 +10,16 @@ import {
   sendOTP,
   forgotPassword,         
   verifyResetOTP,
-  resetPassword
+  resetPassword,
+  uploadResume,
+  deleteResume
 } from "../controllers/user.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 import upload from "../middlewares/multer.js";
 
 const router = express.Router();
 
+// Existing routes
 router.route('/send-otp').post(sendOTP);
 router.route('/register').post(register);
 router.route('/login').post(login);
@@ -30,5 +33,9 @@ router.route('/followorunfollow/:id').post(isAuthenticated, followOrUnfollow);
 router.route('/forgot-password').post(forgotPassword);
 router.route('/verify-reset-otp').post(verifyResetOTP);
 router.route('/reset-password').post(resetPassword);
+
+// Resume routes
+router.route('/resume/upload').post(isAuthenticated, upload.single('resume'), uploadResume);
+router.route('/resume/delete').delete(isAuthenticated, deleteResume);
 
 export default router;

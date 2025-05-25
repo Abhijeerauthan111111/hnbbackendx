@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     following:[{type:mongoose.Schema.Types.ObjectId, ref:'User'}],
     posts:[{type:mongoose.Schema.Types.ObjectId, ref:'Post'}],
     bookmarks:[{type:mongoose.Schema.Types.ObjectId, ref:'Post'}],
-    events: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }]
+    events: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }],
+
+    resumeUrl: { type: String, default: '' },
+    resumeName: { type: String, default: '' }
 },{timestamps:true});
+
 export const User = mongoose.model('User', userSchema);

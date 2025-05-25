@@ -252,7 +252,9 @@ export const login = async (req, res) => {
             following: user.following,
             posts: filteredPosts,
             role : user.role,
-            graduationYear : user.graduationYear
+            graduationYear : user.graduationYear,
+            resumeUrl: user.resumeUrl,       
+            resumeName: user.resumeName 
         }
 
         
@@ -303,6 +305,11 @@ export const getProfile = async (req, res) => {
                 ]
             });
             
+      
+
+
+            
+            
         return res.status(200).json({
             user,
             success: true
@@ -335,9 +342,23 @@ export const editProfile = async (req, res) => {
                 success: false
             });
         };
-        if (bio) user.bio = bio;
-        if (gender) user.gender = gender;
-        if (profilePicture) user.profilePicture = cloudResponse.secure_url;
+        
+        // Update bio if provided (empty string is allowed)
+        if (bio !== undefined) {
+            user.bio = bio;
+        }
+        
+        // Only update gender if it's a valid enum value
+        if (gender && gender !== "undefined" && gender !== "null") {
+            // Check if gender is a valid value based on your schema
+            if (gender === 'male' || gender === 'female') {
+                user.gender = gender;
+            }
+        }
+        
+        if (profilePicture) {
+            user.profilePicture = cloudResponse.secure_url;
+        }
 
         await user.save();
 
@@ -349,6 +370,11 @@ export const editProfile = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: 'Failed to update profile.',
+            success: false,
+            error: error.message
+        });
     }
 };
 export const getSuggestedUsers = async (req, res) => {
@@ -589,6 +615,131 @@ export const resetPassword = async (req, res) => {
     console.log(error);
     return res.status(500).json({
       message: "Failed to reset password",
+      success: false
+    });
+  }
+};
+
+
+
+
+
+// Upload resume
+export const uploadResume = async (req, res) => {
+  try {
+    const userId = req.id;
+    const resume = req.file;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false
+      });
+    }
+    
+    // Check if user is faculty
+    if (user.role === 'faculty') {
+      return res.status(403).json({
+        message: "Faculty members do not need to upload resumes",
+        success: false
+      });
+    }
+    
+    // Check if resume exists
+    if (!resume) {
+      return res.status(400).json({
+        message: "Resume file is required",
+        success: false
+      });
+    }
+    
+    // Check file type
+    if (resume.mimetype !== 'application/pdf') {
+      return res.status(400).json({
+        message: "Only PDF files are accepted",
+        success: false
+      });
+    }
+    
+    // Convert to base64 for Cloudinary
+    const fileUri = getDataUri(resume);
+    
+    // Upload to Cloudinary with optimized settings for free plan
+    const cloudResponse = await cloudinary.uploader.upload(fileUri, {
+      resource_type: 'raw', // Important for PDFs
+      folder: 'resumes',
+      public_id: `resume_${userId}_${Date.now()}`, // Add timestamp to prevent caching
+    });
+    
+    // Update user's resume information
+    user.resumeUrl = cloudResponse.secure_url;
+    user.resumeName = resume.originalname;
+    await user.save();
+    
+    return res.status(200).json({
+      message: "Resume uploaded successfully",
+      resumeUrl: cloudResponse.secure_url,
+      resumeName: resume.originalname,
+      success: true
+    });
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Failed to upload resume",
+      success: false
+    });
+  }
+};
+
+// Delete resume
+export const deleteResume = async (req, res) => {
+  try {
+    const userId = req.id;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false
+      });
+    }
+    
+    // Check if user has a resume
+    if (!user.resumeUrl) {
+      return res.status(400).json({
+        message: "No resume found to delete",
+        success: false
+      });
+    }
+    
+    // Extract public_id from Cloudinary URL
+    const publicId = `resumes/resume_${userId}`;
+    
+    // Delete from Cloudinary (if fails, still remove from user)
+    try {
+      await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+    } catch (cloudinaryError) {
+      console.log("Cloudinary delete error:", cloudinaryError);
+    }
+    
+    // Update user
+    user.resumeUrl = "";
+    user.resumeName = "";
+    await user.save();
+    
+    return res.status(200).json({
+      message: "Resume deleted successfully",
+      success: true
+    });
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Failed to delete resume",
       success: false
     });
   }

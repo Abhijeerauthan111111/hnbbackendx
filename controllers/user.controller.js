@@ -13,27 +13,75 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 
 export const sendOTP = async (req, res) => {
-    console.log(req.body)
     try {
-
         console.log(req.body);
-        const { email } = req.body;
-        const { acceptedTerms } = req.body; 
+        const { firstname, lastname, email, password, department, year } = req.body;
+        const { acceptedTerms } = req.body;
         
-        if (!email) {
+        // Validate all required fields first
+        if (!firstname || !lastname || !email || !password || !department || !year || !acceptedTerms) {
             return res.status(400).json({
-                message: "Email is required",
+                message: "All fields are required",
                 success: false,
             });
         }
 
-        if (!acceptedTerms) {
+        // Name validation - Only letters and spaces allowed
+        const nameRegex = /^[A-Za-z\s]+$/;
+        if (!nameRegex.test(firstname)) {
             return res.status(400).json({
-                message: "Please accept the terms and conditions",
+                message: "First name should only contain letters and spaces",
                 success: false,
             });
         }
         
+        if (!nameRegex.test(lastname)) {
+            return res.status(400).json({
+                message: "Last name should only contain letters and spaces",
+                success: false,
+            });
+        }
+        
+        // Password strength validation
+        if (password.length < 8) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters long",
+                success: false,
+            });
+        }
+        
+        // Check for uppercase letter
+        if (!/[A-Z]/.test(password)) {
+            return res.status(400).json({
+                message: "Password must contain at least one uppercase letter",
+                success: false,
+            });
+        }
+        
+        // Check for lowercase letter
+        if (!/[a-z]/.test(password)) {
+            return res.status(400).json({
+                message: "Password must contain at least one lowercase letter",
+                success: false,
+            });
+        }
+        
+        // Check for number
+        if (!/[0-9]/.test(password)) {
+            return res.status(400).json({
+                message: "Password must contain at least one number",
+                success: false,
+            });
+        }
+        
+        // Check for special character
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+            return res.status(400).json({
+                message: "Password must contain at least one special character",
+                success: false,
+            });
+        }
+
         // Validate email format
         const emailRegex = /^[a-zA-Z]+_\d{11}@hnbgu\.edu\.in$/;
         if (!emailRegex.test(email)) {
@@ -51,6 +99,14 @@ export const sendOTP = async (req, res) => {
                 success: false,
             });
         }
+
+        // Check terms acceptance
+        if (!acceptedTerms) {
+            return res.status(400).json({
+                message: "Please accept the terms and conditions",
+                success: false,
+            });
+        }
         
         // Generate 4-digit OTP
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -58,7 +114,18 @@ export const sendOTP = async (req, res) => {
         // Save OTP to database
         await OTP.findOneAndUpdate(
             { email },
-            { email, otp },
+            { 
+                email, 
+                otp,
+                // Store validated data for later use
+                validatedData: {
+                    firstname,
+                    lastname,
+                    department,
+                    year,
+                    password
+                }
+            },
             { upsert: true, new: true }
         );
         
@@ -71,7 +138,7 @@ export const sendOTP = async (req, res) => {
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
                     <h2 style="color: #4a5568; text-align: center;">HNB X Account Verification</h2>
-                    <p>Hello,</p>
+                    <p>Hello ${firstname},</p>
                     <p>Your verification code for HNB X is:</p>
                     <div style="text-align: center; padding: 10px; background: #f7fafc; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 15px 0;">
                         ${otp}
@@ -101,12 +168,12 @@ export const sendOTP = async (req, res) => {
 
 export const register = async (req, res) => {
     try {
-        console.log(req.body);
         const { firstname, lastname, department, year, email, password, otp } = req.body;
         
-        if (!firstname || !year || !lastname || !email || !password || !department || !otp) {
+        // Basic check for required fields
+        if (!email || !otp) {
             return res.status(401).json({
-                message: "Something is missing, please check!",
+                message: "Email and OTP are required",
                 success: false,
             });
         }
@@ -127,15 +194,16 @@ export const register = async (req, res) => {
             });
         }
         
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(401).json({
-                message: "Email already registered",
-                success: false,
-            });
-        };
-
+        // Get previously validated data
+        const validatedData = otpRecord.validatedData || {};
+        
+        // Use either new data or previously validated data
+        const finalFirstname = firstname || validatedData.firstname;
+        const finalLastname = lastname || validatedData.lastname;
+        const finalDepartment = department || validatedData.department;
+        const finalYear = year || validatedData.year;
+        const finalPassword = password || validatedData.password;
+        
         // Extract username from email
         const baseUsername = email.split('@')[0];   
         const [name, number] = baseUsername.split('_');
@@ -144,11 +212,7 @@ export const register = async (req, res) => {
         const rollnumber = number;
 
         // Create full name
-        const fullname = firstname + " " + lastname;
-
-        
-
-
+        const fullname = `${finalFirstname.trim()} ${finalLastname.trim()}`;
 
         // Determine role
         let role = "student";
@@ -156,26 +220,26 @@ export const register = async (req, res) => {
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth();
 
-        if (year < currentYear) {
+        if (finalYear < currentYear) {
             role = "alumni";
-        } else if (year == currentYear) {
+        } else if (finalYear == currentYear) {
             if (currentMonth > 5) {
                 role = "alumni";
             }
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(finalPassword, 10);
         
         // Create user
         await User.create({
             username,
             email,
-            department,
+            department: finalDepartment,
             password: hashedPassword,
             fullName: fullname,
             rollnumber,
-            graduationYear: year,
+            graduationYear: finalYear,
             role
         });
         

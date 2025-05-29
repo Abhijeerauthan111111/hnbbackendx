@@ -4,6 +4,8 @@ import { Event } from "../models/event.model.js";
 import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
 import { getReceiverSocketId, io } from "../socket/socket.js";
+import ExcelJS from 'exceljs';
+import sgMail from '@sendgrid/mail';
 
 
 // Middleware to check user is faculty or not
@@ -404,6 +406,150 @@ export const getEventComments = async (req, res) => {
         console.log(error);
         return res.status(500).json({
             message: 'Failed to fetch comments',
+            success: false
+        });
+    }
+};
+
+// Toggle interest in event
+export const toggleEventInterest = async (req, res) => {
+    try {
+        const userId = req.id;
+        const eventId = req.params.id;
+        
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({
+                message: "Event not found",
+                success: false
+            });
+        }
+
+        const isInterested = event.interestedUsers.some(
+            entry => entry.user.toString() === userId
+        );
+
+        if (isInterested) {
+            // Remove interest
+            event.interestedUsers = event.interestedUsers.filter(
+                entry => entry.user.toString() !== userId
+            );
+        } else {
+            // Add interest
+            event.interestedUsers.push({ user: userId });
+
+            // Send email notification to event creator
+            const user = await User.findById(userId);
+            const author = await User.findById(event.author);
+
+            const msg = {
+                to: author.email,
+                from: process.env.SENDGRID_FROM_EMAIL,
+                subject: `New Interest in Your Event: ${event.caption}`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2>New Interest Notification</h2>
+                        <p>${user.fullName} (${user.department}) is interested in your event: ${event.caption}</p>
+                        <p>Current total interested users: ${event.interestedUsers.length}</p>
+                    </div>
+                `
+            };
+            await sgMail.send(msg);
+        }
+
+        await event.save();
+
+        return res.status(200).json({
+            message: isInterested ? "Removed interest" : "Marked as interested",
+            success: true
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Failed to update interest",
+            success: false
+        });
+    }
+};
+
+// Generate Excel report of interested users
+export const getEventInterestReport = async (req, res) => {
+    try {
+        const eventId = req.params.id;
+        const event = await Event.findById(eventId)
+            .populate('interestedUsers.user', 'fullName email department rollnumber');
+
+        if (!event) {
+            return res.status(404).json({
+                message: "Event not found",
+                success: false
+            });
+        }
+
+        // Check if user is the event creator
+        if (event.author.toString() !== req.id) {
+            return res.status(403).json({
+                message: "Unauthorized to access this report",
+                success: false
+            });
+        }
+
+        // Create Excel workbook
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Interested Users');
+
+        // Add headers
+        worksheet.columns = [
+            { header: 'Full Name', key: 'fullName', width: 30 },
+            { header: 'Email', key: 'email', width: 40 },
+            { header: 'Department', key: 'department', width: 30 },
+            { header: 'Roll Number', key: 'rollnumber', width: 20 },
+            { header: 'Interest Shown On', key: 'timestamp', width: 30 }
+        ];
+
+        // Add data
+        event.interestedUsers.forEach(entry => {
+            worksheet.addRow({
+                fullName: entry.user.fullName,
+                email: entry.user.email,
+                department: entry.user.department,
+                rollnumber: entry.user.rollnumber,
+                timestamp: entry.timestamp.toLocaleString()
+            });
+        });
+
+        // Generate buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        // Get author's email
+        const author = await User.findById(event.author);
+
+        // Send email with Excel attachment
+        const msg = {
+            to: author.email,
+            from: process.env.SENDGRID_FROM_EMAIL,
+            subject: `Interest Report - ${event.caption}`,
+            text: `Here's the report of interested users for your event: ${event.caption}`,
+            attachments: [
+                {
+                    content: buffer.toString('base64'),
+                    filename: `event_interest_report_${eventId}.xlsx`,
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    disposition: 'attachment'
+                }
+            ]
+        };
+
+        await sgMail.send(msg);
+
+        return res.status(200).json({
+            message: "Report sent to your email",
+            success: true
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "Failed to generate report",
             success: false
         });
     }

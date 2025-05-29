@@ -8,9 +8,12 @@ const eventSchema = new mongoose.Schema({
     startDate:{type:Date},
     endDate:{type:Date},
     description:{type:String, default:''},
-    eventStatus:{type:String, enum:['upcoming', 'ongoing', 'completed'], default:'upcoming'},  
-    createdAt: {type: Date, default: Date.now},
+    eventStatus:{type:String, enum:['upcoming', 'ongoing', 'completed'], default:'upcoming'},
+    interestedUsers: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        timestamp: { type: Date, default: Date.now }
+    }],
+    createdAt: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-},  {timestamps: true}
-);
 export const Event = mongoose.model('Event', eventSchema);

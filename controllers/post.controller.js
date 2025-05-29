@@ -83,7 +83,7 @@ export const addNewPost = async (req, res) => {
 
 
 
-export const getAllPost = async (req, res) => {
+export const getAllPosts = async (req, res) => {
     try {
         const posts = await Post.find().sort({ createdAt: -1 })
             .populate({ path: 'author', select: 'username profilePicture fullName role ' })
@@ -103,6 +103,53 @@ export const getAllPost = async (req, res) => {
         console.log(error);
     }
 };
+
+export const getAllPost = async (req, res) => {
+    try {
+        // Get the current user's ID from authenticated request
+        const currentUserId = req.id;
+        
+        // Find the current user to get their following list
+        const currentUser = await User.findById(currentUserId);
+        
+        if (!currentUser) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        // Get the list of users the current user follows, plus their own ID
+        const followingIds = [...currentUser.following, currentUserId];
+        
+        // Fetch only posts from users the current user follows
+        const posts = await Post.find({ author: { $in: followingIds } })
+            .sort({ createdAt: -1 })
+            .populate({ path: 'author', select: 'username profilePicture fullName role ' })
+            .populate({
+                path: 'comments',
+                sort: { createdAt: -1 },
+                populate: {
+                    path: 'author',
+                    select: 'username profilePicture fullName role'
+                }
+            });
+        
+        return res.status(200).json({
+            posts,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Failed to fetch posts",
+            success: false
+        });
+    }
+};
+
+
+
 export const getUserPost = async (req, res) => {
     try {
         const authorId = req.id;
@@ -342,5 +389,47 @@ export const deleteComment = async (req, res) => {
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: 'Server error', success: false });
+    }
+};
+export const getUserPostsById = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        console.log("Fetching posts for user ID:", userId);
+        
+        if (!userId) {
+            return res.status(400).json({
+                message: "User ID is required",
+                success: false
+            });
+        }
+        
+        const posts = await Post.find({ author: userId })
+            .sort({ createdAt: -1 })
+            .populate({ 
+                path: 'author', 
+                select: 'username profilePicture fullName role' 
+            })
+            .populate({
+                path: 'comments',
+                options: { sort: { createdAt: -1 } },
+                populate: {
+                    path: 'author',
+                    select: 'username profilePicture fullName role'
+                }
+            });
+        
+        console.log(`Found ${posts.length} posts for user ${userId}`);
+        
+        return res.status(200).json({
+            posts,
+            success: true
+        });
+    } catch (error) {
+        console.error("Error fetching user posts:", error);
+        return res.status(500).json({
+            message: "Failed to fetch user posts",
+            success: false
+        });
     }
 };

@@ -285,7 +285,7 @@ export const login = async (req, res) => {
     // Check for missing fields
     if (!email || !password) {
       return res.status(401).json({
-        message: "Something is missing, please check!",
+        message: "Email and password are required",
         success: false,
       });
     }
@@ -293,31 +293,59 @@ export const login = async (req, res) => {
     // Convert email to lowercase and trim any whitespace
     const lowercaseEmail = email.toLowerCase().trim();
     
-    // Debug log to verify the email being searched
     console.log("Looking up user with email:", lowercaseEmail);
     
-    // Find user with normalized email - avoid full population in login
-    let user = await User.findOne({ email: lowercaseEmail }).select("+password");
+    // Find user with normalized email with specific error handling
+    let user;
+    try {
+      user = await User.findOne({ email: lowercaseEmail }).select("+password");
+    } catch (dbError) {
+      console.error("Database query error:", dbError);
+      return res.status(500).json({
+        message: "Database connection error",
+        success: false
+      });
+    }
     
     if (!user) {
-      console.log("User not found with email:", lowercaseEmail);
       return res.status(401).json({
         message: "Incorrect email or password",
         success: false,
       });
     }
     
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
+    // Verify password
+    let isPasswordMatch;
+    try {
+      isPasswordMatch = await bcrypt.compare(password, user.password);
+    } catch (bcryptError) {
+      console.error("Password comparison error:", bcryptError);
+      return res.status(500).json({
+        message: "Authentication error",
+        success: false
+      });
+    }
+    
     if (!isPasswordMatch) {
       return res.status(401).json({
         message: "Incorrect email or password",
         success: false,
       });
-    };
+    }
 
-    const token = await jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+    // Create JWT token with specific error handling
+    let token;
+    try {
+      token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+    } catch (jwtError) {
+      console.error("JWT signing error:", jwtError);
+      return res.status(500).json({
+        message: "Authentication token creation failed",
+        success: false
+      });
+    }
 
-    // Simplify the user object - don't populate posts
+    // Prepare user response object (without password)
     const userResponse = {
       _id: user._id,
       username: user.username,
@@ -335,20 +363,19 @@ export const login = async (req, res) => {
       resumeName: user.resumeName
     };
     
-    // Set cookie and send response
+    // Set cookie with production-friendly settings
     return res.cookie('token', token, { 
       httpOnly: true, 
       sameSite: 'none',  
       secure: true,    
-      maxAge: 1 * 24 * 60 * 60 * 1000 
+      maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
     }).json({
       message: `Welcome back ${user.username}`,
       success: true,
       user: userResponse
     });
   } catch (error) {
-    // Improved error logging
-    console.error("Login Error:", error);
+    console.error("Login Error Details:", error);
     return res.status(500).json({
       message: "Login failed due to server error",
       success: false

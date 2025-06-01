@@ -22,15 +22,16 @@ const __dirname = path.dirname(__filename);
 app.use(express.json());
 app.use(cookieParser());
 app.use(urlencoded({ extended: true }));
+app.options('*', cors()); // Enable preflight for all routes
 app.use(cors({
     origin: [
         'http://localhost:5173',
-        process.env.FRONTEND_URL,
-        'https://hnbconnect.vercel.app'  
-    ].filter(Boolean), 
+        'https://hnbconnect.vercel.app'
+    ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['set-cookie']
 }));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -45,8 +46,10 @@ app.use("/api/v1/event", eventRoute);
 
 
 app.use(express.static(path.join(__dirname, "..", "..", "frontend", "dist")));
-app.get("*", (req, res) => {
-  if (req.url.startsWith('/api')) return next();
+app.get("*", (req, res, next) => {
+  if (req.url.startsWith('/api') || req.method === 'OPTIONS') {
+    return next();
+  }
   res.sendFile(path.join(__dirname, "..", "..", "frontend", "dist", "index.html"));
 });
 

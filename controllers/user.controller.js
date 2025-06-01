@@ -296,8 +296,8 @@ export const login = async (req, res) => {
     // Debug log to verify the email being searched
     console.log("Looking up user with email:", lowercaseEmail);
     
-    // Find user with normalized email
-    let user = await User.findOne({ email: lowercaseEmail });
+    // Find user with normalized email - avoid full population in login
+    let user = await User.findOne({ email: lowercaseEmail }).select("+password");
     
     if (!user) {
       console.log("User not found with email:", lowercaseEmail);
@@ -317,41 +317,25 @@ export const login = async (req, res) => {
 
     const token = await jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
 
-    // populate each post if in the posts array
-    const populatedPosts = await Promise.all(
-      user.posts.map( async (postId) => {
-        const post = await Post.findById(postId);
-        if(post && post.author && post.author.equals(user._id)){
-          return post;
-        }
-        return null;
-      })
-    )
-
-     
-    const filteredPosts = populatedPosts.filter(post => post !== null);
-    
-
-
-    user = {
+    // Simplify the user object - don't populate posts
+    const userResponse = {
       _id: user._id,
       username: user.username,
-      department : user.department,
-      fullName : user.fullName ,
-      rollnumber : user.rollnumber,
+      department: user.department,
+      fullName: user.fullName,
+      rollnumber: user.rollnumber,
       email: user.email,
       profilePicture: user.profilePicture,
       bio: user.bio,
       followers: user.followers,
       following: user.following,
-      posts: filteredPosts,
-      role : user.role,
-      graduationYear : user.graduationYear,
+      role: user.role,
+      graduationYear: user.graduationYear,
       resumeUrl: user.resumeUrl,       
-      resumeName: user.resumeName 
-    }
-
+      resumeName: user.resumeName
+    };
     
+    // Set cookie and send response
     return res.cookie('token', token, { 
       httpOnly: true, 
       sameSite: 'none',  
@@ -360,11 +344,11 @@ export const login = async (req, res) => {
     }).json({
       message: `Welcome back ${user.username}`,
       success: true,
-      user
+      user: userResponse
     });
-
   } catch (error) {
-    console.log(error);
+    // Improved error logging
+    console.error("Login Error:", error);
     return res.status(500).json({
       message: "Login failed due to server error",
       success: false

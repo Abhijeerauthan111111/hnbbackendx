@@ -5,7 +5,7 @@
       "src": "index.js",
       "use": "@vercel/node",
       "config": {
-        "memory": 1024,
+        "memory": 512,
         "maxDuration": 10
       }
     }
@@ -16,7 +16,7 @@
       "methods": ["OPTIONS"],
       "headers": {
         "Access-Control-Allow-Origin": "https://hnbconnect.vercel.app",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
         "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
         "Access-Control-Allow-Credentials": "true"
       },
@@ -24,11 +24,7 @@
     },
     {
       "src": "/api/(.*)",
-      "dest": "index.js",
-      "headers": {
-        "Access-Control-Allow-Origin": "https://hnbconnect.vercel.app",
-        "Access-Control-Allow-Credentials": "true"
-      }
+      "dest": "index.js"
     },
     {
       "src": "/(.*)",

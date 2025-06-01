@@ -7,11 +7,13 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors:{
-        origin:process.env.URL,
-        methods:['GET','POST']
-    }
-})
+  pingTimeout: 60000,
+  cors: {
+    origin: ["http://localhost:5173", "https://hnbconnect.vercel.app"],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling']
+});
 
 const userSocketMap = {} ; // this map stores socket id corresponding the user id; userId -> socketId
 

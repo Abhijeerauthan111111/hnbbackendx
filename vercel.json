@@ -20,11 +20,21 @@
     },
     {
       "src": "/api/(.*)",
-      "dest": "/index.js"
+      "dest": "index.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "https://hnbconnect.vercel.app",
+        "Access-Control-Allow-Credentials": "true"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "/index.js"
+      "dest": "index.js"
     }
-  ]
+  ],
+  "functions": {
+    "index.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }

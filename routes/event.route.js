@@ -26,7 +26,6 @@ router.get("/:id/dislike", isAuthenticated, unlikeEvent);
 router.post("/:id/comment", isAuthenticated, addEventComment);
 router.get("/:id/comments", isAuthenticated, getEventComments);
 
-
 // Interest related routes
 router.post("/:id/interest", isAuthenticated, toggleEventInterest);
 router.get("/:id/interest-report", isAuthenticated, getEventInterestReport);

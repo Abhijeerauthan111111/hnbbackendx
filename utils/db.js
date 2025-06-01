@@ -2,6 +2,9 @@ import mongoose from "mongoose";
 
 const connectDB = async () => {
   try {
+    console.log("Attempting to connect to MongoDB...");
+    console.log("Connection string configured:", process.env.MONGO_URI ? "Yes" : "No");
+    
     // Add retry logic for Vercel serverless environment
     let retries = 3;
     while (retries) {
@@ -9,28 +12,26 @@ const connectDB = async () => {
         const conn = await mongoose.connect(process.env.MONGO_URI, {
           serverSelectionTimeoutMS: 5000,
           socketTimeoutMS: 30000,
-          // Remove directConnection for better compatibility
-          maxPoolSize: 10, // Reduce connection pool for serverless
+          maxPoolSize: 10
         });
-        console.log(`MongoDB connected: ${conn.connection.host}`);
-        break;
+        console.log(`MongoDB connected successfully: ${conn.connection.host}`);
+        return true;
       } catch (error) {
-        console.log(`Connection attempt failed: ${error.message}`);
+        console.log(`Connection attempt ${4-retries} failed: ${error.message}`);
         retries -= 1;
-        // Wait before trying again
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        if (retries) {
+          console.log(`Retrying in 1 second... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
     }
     
-    if (!retries) {
-      throw new Error("Failed to connect to MongoDB after multiple attempts");
-    }
+    console.log("All connection attempts failed");
+    return false;
   } catch (error) {
-    console.log(`Error: ${error.message}`);
-    // Don't exit process on Vercel - just log the error
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
+    console.log(`Error in connectDB: ${error.message}`);
+    return false;
   }
 };
 

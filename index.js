@@ -57,8 +57,16 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'HNB Connect API is running' });
 });
 
+// Connect to database before starting server
+const startServer = async () => {
+  const dbConnected = await connectDB();
+  
+  const PORT = process.env.PORT || 8000;
+  
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Database connection status: ${dbConnected ? "Connected" : "Failed"}`);
+  });
+};
 
-server.listen(PORT, () => {
-    connectDB();
-    console.log(`Server listen at port ${PORT}`);
-});
+startServer();
